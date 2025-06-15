@@ -452,5 +452,5 @@ essay_test_user_prompt = """
 {question}
 
 טקסט החיבור לבדיקה:
-{essay_text}
+{essay}
 """
