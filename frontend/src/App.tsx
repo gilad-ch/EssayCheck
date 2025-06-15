@@ -14,10 +14,10 @@ import Header from "./components/Header";
 
 const queryClient = new QueryClient();
 
-const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const PUBLISHABLE_KEY = import.meta.env.CLERK_PUBLISHABLE_KEY;
 
 if (!PUBLISHABLE_KEY) {
-  throw new Error("Missing Clerk Publishable Key. Please add VITE_CLERK_PUBLISHABLE_KEY to your environment variables.");
+  throw new Error("Missing Clerk Publishable Key. Please add PUBLISHABLE_KEY to your environment variables.");
 }
 
 const App = () => (
