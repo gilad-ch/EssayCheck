@@ -403,8 +403,7 @@ essay_test_system_prompt = '''
 
 
 **המשימה שלך:**
-עליך להחזיר תשובה **בפורמט JSON תקני בלבד** שמכיל את הדברים הבאים בלבד:
-
+Return the challenge in the following JSON structure:
 {
   "general_conclusion": "משפט קצר המציג את המסקנה העיקרית מבדיקת החיבור",
   "content": {
