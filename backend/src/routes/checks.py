@@ -7,12 +7,8 @@ from datetime import datetime, timezone
 
 router = APIRouter()
 
-# Regex pattern to prevent basic injection
-
 mock_user = {
-    "user_id": "mock_user",
-    "credits": 10,
-    "created_at": datetime.now(timezone.utc)
+    "user_id": "123"
 }
 
 class CheckEssayPayload(BaseModel):
@@ -29,20 +25,38 @@ class CheckEssayPayload(BaseModel):
         description="The essay text"
     )
 
-@router.post("/check-essay", tags=["Checks"])
+class User(BaseModel):
+    _id = str, Field(..., alias="_id")
+    clerk_id: str
+    credits: int
+    created_at: datetime
+
+class Test(BaseModel):
+    user_id: str
+    created_at: datetime
+    results: dict
+    question: str
+    essay: str
+
+async def auth_and_get_user(request: Request , db: PsycheckDB):
+    # clerk_user_details = authenticate_user(request)
+    clerk_user_details = mock_user 
+    clerk_id = clerk_user_details.get("user_id")
+    user_obj = await db.get_user_obj(clerk_id)
+    if not user_obj:
+        user_obj = await db.create_user(clerk_id)
+    return user_obj
+
+@router.post("/check-essay", tags=["Checks"], response_model=Test)
 async def check_essay(
     payload: CheckEssayPayload,
     request: Request,
     db: PsycheckDB = Depends(get_db)
 ):
     try:
-        # user_details = authenticate_user(request)
-        user_details = mock_user  # For testing purposes, replace with authenticate_user(request)
-        user_id = user_details.get("user_id")
-
-        user_obj = await db.get_user_obj(user_id)
+        user_obj = await auth_and_get_user(request, db)
         if not user_obj:
-            user_obj = await db.create_user(user_id)
+            raise HTTPException(status_code=401, detail="Unauthorized")
 
         if user_obj['credits'] <= 0:
             raise HTTPException(status_code=429, detail="Credits exhausted")
@@ -53,7 +67,7 @@ async def check_essay(
         )
 
         new_test = await db.create_test(
-            user_id=user_id,
+            user_id=user_obj['_id'],
             created_at=datetime.now(timezone.utc),
             results=results_data,
             question=payload.question,
@@ -61,7 +75,7 @@ async def check_essay(
         )
 
         user_obj['credits'] -= 1
-        await db.update_user_obj(user_obj)
+        await db.update_user(_id=user_obj['_id'], user_details=user_obj)
 
         return new_test
 
@@ -69,15 +83,16 @@ async def check_essay(
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-@router.get("/my-history", tags=["Checks"])
+@router.get("/my-history", tags=["Checks"], response_model=list[Test])
 async def my_history(
     request: Request,
     db: PsycheckDB = Depends(get_db)
 ):
-    user_details = mock_user
-    user_id = user_details.get("user_id")
-    tests = await db.get_user_tests(user_id)
-    return {"tests": tests or []}
+    user_obj = await auth_and_get_user(request, db)
+    if not user_obj:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    tests = await db.get_user_tests(user_obj['_id'])
+    return tests or []
 
 
 @router.get("/user-details", tags=["Checks"])
@@ -85,10 +100,9 @@ async def get_user(
     request: Request,
     db: PsycheckDB = Depends(get_db)
 ):
-    user_details = mock_user
-    user_id = user_details.get("user_id")
-
-    user_obj = await db.get_user_obj(user_id)
+    user_obj = await auth_and_get_user(request, db)
+    if not user_obj:
+        raise HTTPException(status_code=401, detail="Unauthorized")
     if not user_obj:
         raise HTTPException(status_code=404, detail="User not found")
     

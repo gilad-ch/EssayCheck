@@ -2,12 +2,23 @@ import logging
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from datetime import datetime
 from typing import Optional, Dict, Any, List
+from bson import ObjectId
 
 MONGO_URI = "mongodb://localhost:27017"
 DB_NAME = "psycheck"
 
 logger = logging.getLogger(__name__)
 
+
+def oid_to_str(doc):
+    """Recursively convert ObjectId to string in a dict or list"""
+    if isinstance(doc, dict):
+        return {k: oid_to_str(v) for k, v in doc.items()}
+    elif isinstance(doc, list):
+        return [oid_to_str(i) for i in doc]
+    elif isinstance(doc, ObjectId):
+        return str(doc)
+    return doc
 
 class PsycheckDB:
     def __init__(self, db: AsyncIOMotorDatabase):
@@ -16,35 +27,44 @@ class PsycheckDB:
         self.tests = db["tests"]
 
     # ------ user operations ------
-    async def get_user_obj(self, user_id: str) -> Optional[Dict[str, Any]]:
+class PsycheckDB:
+    def __init__(self, db: AsyncIOMotorDatabase):
+        self.db = db
+        self.users = db["users"]
+        self.tests = db["tests"]
+
+    # ------ user operations ------
+    async def get_user_obj(self, clerk_id: str) -> Optional[Dict[str, Any]]:
         try:
-            return await self.users.find_one({"user_id": user_id})
-        except Exception as e:
-            logger.exception(f"Error fetching user {user_id}")
+            user_obj = await self.users.find_one({"clerk_id": clerk_id})
+            return oid_to_str(user_obj) if user_obj else None
+        except Exception:
+            logger.exception(f"Error fetching user {clerk_id}")
             return None
 
-    async def create_user(self, user_id: str) -> Dict[str, Any]:
+    async def create_user(self, clerk_id: str) -> Dict[str, Any]:
         user_obj = {
-            "user_id": user_id,
+            "clerk_id": clerk_id,
             "credits": 2,
             "created_at": datetime.utcnow(),
         }
         try:
-            await self.users.insert_one(user_obj)
-            return user_obj
-        except Exception as e:
-            logger.exception(f"Error creating user {user_id}")
+            result = await self.users.insert_one(user_obj)
+            user_obj["_id"] = result.inserted_id
+            return oid_to_str(user_obj)
+        except Exception:
+            logger.exception(f"Error creating user {clerk_id}")
             raise
 
-    async def update_user_obj(self, user_obj: Dict[str, Any]) -> None:
+    async def update_user(self, _id, **user_details):
+        logger.debug(
+            f"Updating user: {_id} with details {user_details}")
+        filter_query = {"_id": ObjectId(_id)}
         try:
-            await self.users.update_one(
-                {"user_id": user_obj["user_id"]},
-                {"$set": user_obj}
-            )
+            await self.users.update_one(filter_query, {"$set": user_details})
+            logger.debug(f"User {_id} updated successfully.")
         except Exception as e:
-            logger.exception(f"Error updating user {user_obj.get('user_id')}")
-            raise
+            logger.error(f"Failed to update user {_id}: {e}")
 
     # ------ test operations ------
     async def create_test(
@@ -55,27 +75,29 @@ class PsycheckDB:
         question: str,
         essay: str
     ) -> Dict[str, Any]:
-        challenge = {
-            "user_id": user_id,
+        test = {
+            "user_id": ObjectId(user_id),
             "created_at": created_at,
             "results": results,
             "question": question,
             "essay": essay
         }
         try:
-            await self.tests.insert_one(challenge)
-            return challenge
-        except Exception as e:
+            result = await self.tests.insert_one(test)
+            test["_id"] = result.inserted_id
+            return oid_to_str(test)
+        except Exception:
             logger.exception(f"Error creating test for {user_id}")
             raise
 
     async def get_user_tests(self, user_id: str) -> List[Dict[str, Any]]:
         try:
-            cursor = self.tests.find({"user_id": user_id})
-            return [doc async for doc in cursor]
-        except Exception as e:
+            cursor = self.tests.find({"user_id": ObjectId(user_id)})
+            return [oid_to_str(doc) async for doc in cursor]
+        except Exception:
             logger.exception(f"Error getting tests for user {user_id}")
             return []
+
 
 
 # Dependency for FastAPI
