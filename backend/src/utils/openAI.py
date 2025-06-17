@@ -1,3 +1,4 @@
+import json
 import os
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -24,8 +25,12 @@ def prompt_llm(prompt: str, system_message: str = None) -> str:
             {"role": "system", "content": system_message},
             {"role": "user", "content": prompt}
         ],
-        max_tokens=300
+        max_tokens=3000,
+        response_format={"type": "json_object"},
+        temperature=0.7,
+
     )
 
-    return response.choices[0].message.content.strip()
+    response = response.choices[0].message.content.strip()
+    return json.loads(response)
 
