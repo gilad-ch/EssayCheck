@@ -57,14 +57,14 @@ class PsycheckDB:
             raise
 
     async def update_user(self, _id, **user_details):
-        logger.debug(
-            f"Updating user: {_id} with details {user_details}")
+        logger.debug(f"Updating user: {_id} with details {user_details}")
         filter_query = {"_id": ObjectId(_id)}
         try:
-            await self.users.update_one(filter_query, {"$set": user_details})
+            await self.users.update_one(filter_query, {"$set": {**user_details}})
             logger.debug(f"User {_id} updated successfully.")
         except Exception as e:
             logger.error(f"Failed to update user {_id}: {e}")
+
 
     # ------ test operations ------
     async def create_test(
@@ -90,13 +90,22 @@ class PsycheckDB:
             logger.exception(f"Error creating test for {user_id}")
             raise
 
+
+
     async def get_user_tests(self, user_id: str) -> List[Dict[str, Any]]:
         try:
-            cursor = self.tests.find({"user_id": ObjectId(user_id)})
-            return [oid_to_str(doc) async for doc in cursor]
+            tests_cursor = self.tests.find({"user_id": ObjectId(user_id)})
+            tests = await tests_cursor.to_list(length=None)
+
+            for test in tests:
+                test['_id'] = str(test['_id'])
+                test['user_id'] = str(test['user_id'])
+            return tests
+
         except Exception:
             logger.exception(f"Error getting tests for user {user_id}")
             return []
+
 
 
 
