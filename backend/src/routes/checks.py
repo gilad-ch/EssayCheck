@@ -36,19 +36,19 @@ class CriterionResult(BaseModel):
     feedback: str
 
 class ContentSectionResult(BaseModel):
-    content_conclusion: str
+    content_conclusion: str = None
     score: float
     criterias: List[CriterionResult]
 
 class LanguageSectionResult(BaseModel):
-    language_conclusion: str
+    language_conclusion: str = None
     score: float
     criterias: List[CriterionResult]
 
 class TestResults(BaseModel):
     length_conclusion: str
     complete_score: float
-    task_topic: str
+    task_topic: str = None
     general_conclusion: str
     content: ContentSectionResult
     language: LanguageSectionResult
