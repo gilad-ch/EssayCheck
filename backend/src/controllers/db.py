@@ -47,6 +47,7 @@ class PsycheckDB:
             "clerk_id": clerk_id,
             "credits": 2,
             "created_at": datetime.utcnow(),
+            "last_credit_update": datetime.utcnow(),
         }
         try:
             result = await self.users.insert_one(user_obj)
@@ -89,6 +90,17 @@ class PsycheckDB:
         except Exception:
             logger.exception(f"Error creating test for {user_id}")
             raise
+
+    async def get_test(self, test_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            test = await self.tests.find_one({"_id": ObjectId(test_id)})
+            if test:
+                test['_id'] = str(test['_id'])
+                test['user_id'] = str(test['user_id'])
+            return test
+        except Exception:
+            logger.exception(f"Error fetching test {test_id}")
+            return None
 
 
 

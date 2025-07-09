@@ -4,7 +4,8 @@ from pydantic import BaseModel, Field
 from security.ClerkAuth import authenticate_user
 from services.essay_checker import check_essay_with_ai
 from controllers.db import PsycheckDB, get_db
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from typing import Any, List
 
 router = APIRouter()
 
@@ -27,17 +28,44 @@ class User(BaseModel):
     clerk_id: str
     credits: int
     created_at: datetime
+    last_credit_update: datetime
+
+class CriterionResult(BaseModel):
+    criterion: str
+    score: float
+    feedback: str
+
+class ContentSectionResult(BaseModel):
+    content_conclusion: str
+    score: float
+    criterias: List[CriterionResult]
+
+class LanguageSectionResult(BaseModel):
+    language_conclusion: str
+    score: float
+    criterias: List[CriterionResult]
+
+class TestResults(BaseModel):
+    length_conclusion: str
+    complete_score: float
+    task_topic: str
+    general_conclusion: str
+    content: ContentSectionResult
+    language: LanguageSectionResult
+    suggestions: List[str]
 
 class Test(BaseModel):
     id: str = Field(..., alias="_id")
     user_id: str
     created_at: datetime
-    results: dict
+    results: TestResults
     question: str
     essay: str
 
     class Config:
         allow_population_by_field_name = True  # lets you return either _id or id
+
+
 
 async def auth_and_get_user(request: Request , db: PsycheckDB):
     clerk_user_details = authenticate_user(request)
@@ -94,14 +122,39 @@ async def my_history(
     tests = await db.get_user_tests(user_obj['_id'])
     return tests or []
 
+@router.get("/essay-results/{test_id}", tags=["Checks"], response_model=Test)
+async def get_essay_results(
+    test_id: Annotated[str, Field(..., description="The ID of the test", pattern="^[a-fA-F0-9]{24}$")],
+    request: Request,
+    db: PsycheckDB = Depends(get_db)
+):
+    user_obj = await auth_and_get_user(request, db)
+    if not user_obj:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    test = await db.get_test(test_id)
+    if not test:
+        raise HTTPException(status_code=404, detail="Test not found")
+    
+    if test['user_id'] != user_obj['_id']:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    return test
 
 
-@router.get("/user-details", tags=["Checks"])
+@router.get("/user-details", tags=["Users"])
 async def get_user(
     request: Request,
     db: PsycheckDB = Depends(get_db)
 ):
     user_obj = await auth_and_get_user(request, db)
+    if user_obj.get("credits") == 0:
+        if datetime.utcnow() - user_obj.get("last_credit_update") > timedelta(days=1):
+            user_obj = await db.update_user(
+                _id=user_obj["_id"],
+                credits=2,
+                last_credit_update=datetime.utcnow()
+            )
     if not user_obj:
         raise HTTPException(status_code=401, detail="Unauthorized")
     if not user_obj:
