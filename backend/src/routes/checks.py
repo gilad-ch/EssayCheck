@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from typing import Annotated
+from typing import Annotated, Optional
 from pydantic import BaseModel, Field
 from security.ClerkAuth import authenticate_user
 from services.essay_checker import check_essay_with_ai
@@ -36,19 +36,19 @@ class CriterionResult(BaseModel):
     feedback: str
 
 class ContentSectionResult(BaseModel):
-    content_conclusion: str = None
+    content_conclusion: Optional[str] = None
     score: float
     criterias: List[CriterionResult]
 
 class LanguageSectionResult(BaseModel):
-    language_conclusion: str = None
+    language_conclusion: Optional[str] = None
     score: float
     criterias: List[CriterionResult]
 
 class TestResults(BaseModel):
     length_conclusion: str
     complete_score: float
-    task_topic: str = None
+    task_topic: Optional[str] = None
     general_conclusion: str
     content: ContentSectionResult
     language: LanguageSectionResult
@@ -70,10 +70,23 @@ class Test(BaseModel):
 async def auth_and_get_user(request: Request , db: PsycheckDB):
     clerk_user_details = authenticate_user(request)
     clerk_id = clerk_user_details.get("user_id")
+    if not isinstance(clerk_id, str) or not clerk_id:
+        raise HTTPException(401, "Invalid or missing user_id")
+        
     user_obj = await db.get_user_obj(clerk_id)
     if not user_obj:
         user_obj = await db.create_user(clerk_id)
     return user_obj
+
+async def check_essay_length(essay: str):
+    essay_word_count = len(essay.split())
+    essay_lines_count = essay_word_count // 12
+    if essay_lines_count <= 10:
+        raise HTTPException(400, "Essay too short")
+
+    if essay_lines_count > 50:
+        raise HTTPException(400, "Essay too long")
+    return 
 
 @router.post("/check-essay", response_model=Test, tags=["Checks"])
 async def check_essay(
@@ -87,6 +100,8 @@ async def check_essay(
 
     if user["credits"] <= 0:
         raise HTTPException(429, "Credits exhausted")
+
+    await check_essay_length(payload.essay) # Preliminary check for essay length to avoid unnecessary LLM call
 
     results = await check_essay_with_ai(
         question=payload.question,
@@ -148,13 +163,13 @@ async def get_user(
     db: PsycheckDB = Depends(get_db)
 ):
     user_obj = await auth_and_get_user(request, db)
-    if user_obj.get("credits") == 0:
-        if datetime.utcnow() - user_obj.get("last_credit_update") > timedelta(days=1):
-            user_obj = await db.update_user(
-                _id=user_obj["_id"],
-                credits=2,
-                last_credit_update=datetime.utcnow()
-            )
+    last_update = user_obj.get("last_credit_update")
+    if last_update is not None and datetime.utcnow() - last_update > timedelta(days=1):
+        user_obj = await db.update_user(
+            _id=user_obj["_id"],
+            credits=2,
+            last_credit_update=datetime.utcnow()
+        )
     if not user_obj:
         raise HTTPException(status_code=401, detail="Unauthorized")
     if not user_obj:

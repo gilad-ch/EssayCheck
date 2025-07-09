@@ -5,27 +5,38 @@ from config.llmPrompts import essay_test_system_prompt, essay_test_user_prompt
 logger = logging.getLogger(__name__)
 
 
-def calculate_results(results: dict, essay: str) -> float:
+def calculate_results(results: dict, essay: str) -> dict:
+    """
+    Calculates and updates the results dictionary with content, language, and complete scores,
+    as well as conclusions based on essay length. Returns the updated results dict.
+    """
+    # Ensure 'suggestions' key exists
+    if 'suggestions' not in results or not isinstance(results['suggestions'], list):
+        results['suggestions'] = []
 
-    content_score = 0
-    for criterion in results.get("content", {}).get("criterias", []):
-        content_score += criterion.get("score", 0)
-    
-    if content_score:
-        content_score = content_score / len(results.get("content", {}).get("criterias", []))
+    # Calculate content score
+    content_criterias = results.get("content", {}).get("criterias", [])
+    content_score = sum(criterion.get("score", 0) for criterion in content_criterias)
+    if content_criterias:
+        content_score /= len(content_criterias)
+    else:
+        content_score = 0
 
-    language_score = 0
-    for criterion in results.get("language", {}).get("criterias", []):
-        language_score += criterion.get("score", 0)
+    # Calculate language score
+    language_criterias = results.get("language", {}).get("criterias", [])
+    language_score = sum(criterion.get("score", 0) for criterion in language_criterias)
+    if language_criterias:
+        language_score /= len(language_criterias)
+    else:
+        language_score = 0
 
-    if language_score:
-        language_score = language_score / len(results.get("language", {}).get("criterias", []))
-
+    # Calculate essay length in lines (assuming 12 words per line)
     essay_word_count = len(essay.split())
     essay_lines_count = essay_word_count // 12
 
+    # Handle length-based rules
     if essay_lines_count <= 10:
-        # The essay will not be checked, implying a score of 0.
+        # Essay too short, automatic fail
         results['general_conclusion'] = 'החיבור קצר מדי – נפסל אוטומטית.'
         results['complete_score'] = 0.0
         results['length_conclusion'] = 'אורך החיבור אינו תקין.'
@@ -44,12 +55,16 @@ def calculate_results(results: dict, essay: str) -> float:
         )
     elif 25 <= essay_lines_count <= 50:
         results['length_conclusion'] = 'אורך החיבור תקין. אין ניכוי נקודות.'
-        pass  
     elif essay_lines_count > 50:
         results['general_conclusion'] = 'החיבור ארוך מהמותר – נפסל אוטומטית .'
         results['complete_score'] = 0.0
         return results
-    
+
+    # Update results with calculated scores
+    if 'content' not in results:
+        results['content'] = {}
+    if 'language' not in results:
+        results['language'] = {}
     results['content']['score'] = content_score
     results['language']['score'] = language_score
     results['complete_score'] = (content_score + language_score) * 2.0
@@ -64,36 +79,6 @@ async def check_essay_with_ai(question: str, essay: str) -> dict:
         logger.info("Starting essay evaluation")
         logger.debug(f"Question: {question}")
         logger.debug(f"Essay (truncated): {essay[:200]}...")
-
-        # Preliminary check for essay length to avoid unnecessary LLM call
-        essay_word_count = len(essay.split())
-        essay_lines_count = essay_word_count // 12
-
-        if essay_lines_count <= 10:
-            logger.info("Essay too short — rejected before LLM evaluation")
-            return {
-                "content": {"criterias": [], "score": 0},
-                "language": {"criterias": [], "score": 0},
-                "general_conclusion": 'החיבור קצר מדי – נפסל אוטומטית).',
-                'length_conclusion' : 'אורך החיבור אינו תקין.',
-                "complete_score": 0.0,
-                "suggestions": [
-                "וודא שאורך החיבור תואם את הטווח המותר: 25-50 שורות.",
-            ]
-            }
-
-        if essay_lines_count > 50:
-            logger.info("Essay too long — rejected before LLM evaluation")
-            return {
-                "content": {"criterias": [], "score": 0},
-                "language": {"criterias": [], "score": 0},
-                "general_conclusion": 'החיבור ארוך מהמותר – נפסל אוטומטית .',
-                'length_conclusion' : 'אורך החיבור אינו תקין.',
-                "complete_score": 0.0,
-                "suggestions": [
-                "וודא שאורך החיבור תואם את הטווח המותר: 25-50 שורות.",
-            ]
-            }
 
         # Proceed with LLM evaluation
         prompt = essay_test_user_prompt.format(question=question, essay=essay)
