@@ -1,9 +1,11 @@
 import traceback
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 import fastapi
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from routes import checks, users
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from routes import checks, users, limiter
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
@@ -11,7 +13,13 @@ from pymongo.errors import PyMongoError
 import logging
 
 load_dotenv()
+
 app = FastAPI(debug=True)
+
+app.state.limiter = limiter
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 logger = logging.getLogger("uvicorn.error")
 
 
@@ -63,6 +71,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/", tags=["Root"])
+async def root():
+    return Response("Server is ruuning")
 
 
 app.include_router(checks.router, prefix="/api")
