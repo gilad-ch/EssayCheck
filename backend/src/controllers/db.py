@@ -1,3 +1,4 @@
+from collections.abc import AsyncGenerator
 import logging
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from datetime import datetime
@@ -20,13 +21,7 @@ def oid_to_str(doc):
         return str(doc)
     return doc
 
-class PsycheckDB:
-    def __init__(self, db: AsyncIOMotorDatabase):
-        self.db = db
-        self.users = db["users"]
-        self.tests = db["tests"]
 
-    # ------ user operations ------
 class PsycheckDB:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
@@ -66,7 +61,6 @@ class PsycheckDB:
         except Exception as e:
             logger.error(f"Failed to update user {_id}: {e}")
 
-
     # ------ test operations ------
     async def create_test(
         self,
@@ -74,14 +68,14 @@ class PsycheckDB:
         created_at: datetime,
         results: dict,
         question: str,
-        essay: str
+        essay: str,
     ) -> Dict[str, Any]:
         test = {
             "user_id": ObjectId(user_id),
             "created_at": created_at,
             "results": results,
             "question": question,
-            "essay": essay
+            "essay": essay,
         }
         try:
             result = await self.tests.insert_one(test)
@@ -95,14 +89,12 @@ class PsycheckDB:
         try:
             test = await self.tests.find_one({"_id": ObjectId(test_id)})
             if test:
-                test['_id'] = str(test['_id'])
-                test['user_id'] = str(test['user_id'])
+                test["_id"] = str(test["_id"])
+                test["user_id"] = str(test["user_id"])
             return test
         except Exception:
             logger.exception(f"Error fetching test {test_id}")
             return None
-
-
 
     async def get_user_tests(self, user_id: str) -> List[Dict[str, Any]]:
         try:
@@ -110,8 +102,8 @@ class PsycheckDB:
             tests = await tests_cursor.to_list(length=None)
 
             for test in tests:
-                test['_id'] = str(test['_id'])
-                test['user_id'] = str(test['user_id'])
+                test["_id"] = str(test["_id"])
+                test["user_id"] = str(test["user_id"])
             return tests
 
         except Exception:
@@ -119,11 +111,14 @@ class PsycheckDB:
             return []
 
 
-
-
 # Dependency for FastAPI
 client = AsyncIOMotorClient(MONGO_URI)
 
-def get_db() -> PsycheckDB:
-    db = client[DB_NAME]
-    return PsycheckDB(db)
+
+async def get_db() -> AsyncGenerator[PsycheckDB, None]:
+    client = AsyncIOMotorClient(MONGO_URI)
+    try:
+        db = client[DB_NAME]
+        yield PsycheckDB(db)
+    finally:
+        client.close()
