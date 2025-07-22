@@ -25,7 +25,6 @@ logger = logging.getLogger("uvicorn.error")
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    traceback.print_exc()
     # Get first error message
     error_msg = "Invalid input"
 
@@ -37,7 +36,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request, exc):
-    logger.error("Unhandled error" + str(exc))
+    logger.error("Unhandled error" + str(exc), exc_info=True)
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},
