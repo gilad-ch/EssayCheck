@@ -72,7 +72,7 @@ async def check_essay_length(essay: str):
 
 
 @router.post("/check-essay", response_model=Test, tags=["Checks"])
-@limiter.limit("60/minute")
+@limiter.limit("5/minute")
 async def check_essay(
     payload: CheckEssayPayload,
     request: Request,
@@ -111,7 +111,7 @@ async def check_essay(
 
 
 @router.get("/my-history", tags=["Checks"], response_model=list[Test])
-@limiter.limit("60/minute")
+@limiter.limit("20/minute")
 async def my_history(request: Request, db: PsycheckDB = Depends(get_db)):
 
     user_obj = await auth_and_get_user(request, db)
@@ -122,7 +122,7 @@ async def my_history(request: Request, db: PsycheckDB = Depends(get_db)):
 
 
 @router.get("/essay-results/{test_id}", tags=["Checks"], response_model=Test)
-@limiter.limit("60/minute")
+@limiter.limit("20/minute")
 async def get_essay_results(
     test_id: Annotated[
         str, Field(..., description="The ID of the test", pattern="^[a-fA-F0-9]{24}$")

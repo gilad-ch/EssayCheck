@@ -17,7 +17,7 @@ class User(BaseModel):
 
 
 @router.get("/user-details", tags=["Users"], response_model=User)
-@limiter.limit("60/minute")
+@limiter.limit("20/minute")
 async def get_user(request: Request, db: PsycheckDB = Depends(get_db)):
     user_obj = await auth_and_get_user(request, db)
     last_update = user_obj.get("last_credit_update")
