@@ -13,11 +13,9 @@ router = APIRouter(prefix="/checks")
 
 class CheckEssayPayload(BaseModel):
     question: str = Field(
-        ..., min_length=10, max_length=3000, description="The essay question"
+        ..., min_length=1, max_length=3000, description="The essay question"
     )
-    essay: str = Field(
-        ..., min_length=50, max_length=6000, description="The essay text"
-    )
+    essay: str = Field(..., min_length=1, max_length=6000, description="The essay text")
 
 
 class CriterionResult(BaseModel):
@@ -64,10 +62,10 @@ async def check_essay_length(essay: str):
     essay_word_count = len(essay.split())
     essay_lines_count = essay_word_count // 12
     if essay_lines_count <= 10:
-        raise HTTPException(400, "Essay too short")
+        raise HTTPException(422, "Essay too short")
 
     if essay_lines_count > 50:
-        raise HTTPException(400, "Essay too long")
+        raise HTTPException(422, "Essay too long")
     return
 
 
