@@ -4,8 +4,12 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from bson import ObjectId
+import os
+from dotenv import load_dotenv
 
-MONGO_URI = "mongodb://localhost:27017"
+load_dotenv()
+
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
 DB_NAME = "psycheck"
 
 logger = logging.getLogger(__name__)
