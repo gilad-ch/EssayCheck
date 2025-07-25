@@ -24,7 +24,7 @@ def authenticate_user(request: Request):
                 "http://localhost:5174",
                 "http://localhost:8080",
                 "https://psycheck-frontend-1i2thi1zi-gils-projects-ac09edb0.vercel.app",
-                "https://psycheck.gchshell.uk/",
+                "https://psycheck.gchshell.uk",
             ],
             jwt_key=JWT_KEY,
         ),
